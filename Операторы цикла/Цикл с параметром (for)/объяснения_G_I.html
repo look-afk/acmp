@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACMP - Цикл for - Задачи G, I</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f23; color: #ccc; padding: 20px; }
+        h1 { text-align: center; color: #ffcc00; margin-bottom: 30px; font-size: 28px; }
+        .task { background: #1a1a2e; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 5px solid #ffcc00; }
+        .task h2 { color: #ffcc00; margin-bottom: 15px; font-size: 22px; }
+        .task h3 { color: #7ec8e3; margin: 15px 0 10px 0; font-size: 17px; }
+        .condition { background: #16213e; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333; }
+        .condition b { color: #aaa; }
+        .explain { background: #0a3d62; padding: 15px; border-radius: 8px; margin-bottom: 15px; line-height: 1.8; }
+        .explain b { color: #ffcc00; }
+        pre { background: #1e1e2e; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 14px; line-height: 1.6; border: 1px solid #444; }
+        code { color: #a6e3a1; }
+        .comment { color: #6c7086; }
+        .keyword { color: #cba6f7; }
+        .string { color: #f9e2af; }
+        .func { color: #89b4fa; }
+        .number { color: #fab387; }
+        .table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .table th { background: #16213e; color: #ffcc00; padding: 8px 12px; text-align: left; }
+        .table td { padding: 8px 12px; border-bottom: 1px solid #333; }
+        .tip { background: #3d2b00; padding: 12px; border-radius: 8px; border-left: 4px solid #ffcc00; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<h1>Задачи G, I — Цикл for</h1>
+
+<!-- ===== ЗАДАЧА G ===== -->
+<div class="task">
+    <h2>G. Дороги</h2>
+
+    <div class="condition">
+        <b>Условие:</b> На планете N городов, некоторые соединены дорогами.<br>
+        Дано число N (0 ≤ N ≤ 100) и матрица N×N из 0 и 1.<br>
+        Если в позиции (i, j) стоит 1, города i и j соединены дорогой.<br>
+        Гарантируется, что дороги соединяют различные города.<br><br>
+        <b>Ввод:</b> N, затем N строк по N чисел (0 или 1)<br>
+        <b>Вывод:</b> количество дорог
+    </div>
+
+    <div class="explain">
+        <h3>Объяснение:</h3>
+        Это <b>матрица смежности</b> графа. Каждая единичка — это дорога между двумя городами.<br><br>
+
+        Но дорога между городами A и B записана <b>дважды</b>:<br>
+        — строка A, столбец B (город A связан с B)<br>
+        — строка B, столбец A (город B связан с A)<br><br>
+
+        Поэтому чтобы получить правильное количество дорог, надо:<br>
+        1. Посчитать сумму всех единичек в матрице<br>
+        2. Поделить на 2 (каждая дорога посчитана дважды)
+
+        <br><br>
+        <div class="tip">
+            <b>Пример:</b> Матрица 5×5:<br>
+            0 1 0 0 0<br>
+            1 0 1 1 0<br>
+            0 1 0 0 0<br>
+            0 1 0 0 0<br>
+            0 0 0 0 0<br><br>
+            Сумма единичек = 6, дорог = 6/2 = <b>3</b>
+        </div>
+    </div>
+
+    <h3>Код решения:</h3>
+<pre><code><span class="keyword">n</span> = <span class="func">int</span>(<span class="func">input</span>())              <span class="comment"># Читаем количество городов</span>
+<span class="keyword">total</span> = <span class="number">0</span>                      <span class="comment"># Счётчик единичек</span>
+
+<span class="keyword">for</span> i <span class="keyword">in</span> <span class="func">range</span>(n):             <span class="comment"># Читаем N строк</span>
+    <span class="keyword">row</span> = <span class="func">list</span>(<span class="func">map</span>(<span class="func">int</span>, <span class="func">input</span>().<span class="func">split</span>()))  <span class="comment"># Строка матрицы</span>
+    <span class="keyword">total</span> += <span class="func">sum</span>(row)           <span class="comment"># Прибавляем сумму (сколько единичек)</span>
+
+<span class="func">print</span>(<span class="keyword">total</span> // <span class="number">2</span>)             <span class="comment"># Делим на 2, т.к. каждая дорога двойная</span></code></pre>
+
+    <h3>Как это работает (пример из условия):</h3>
+    <table class="table">
+        <tr><th>Строка</th><th>Содержимое</th><th>Сумма единичек</th></tr>
+        <tr><td>1</td><td>0 1 0 0 0</td><td>1</td></tr>
+        <tr><td>2</td><td>1 0 1 1 0</td><td>3</td></tr>
+        <tr><td>3</td><td>0 1 0 0 0</td><td>1</td></tr>
+        <tr><td>4</td><td>0 1 0 0 0</td><td>1</td></tr>
+        <tr><td>5</td><td>0 0 0 0 0</td><td>0</td></tr>
+        <tr><td colspan="2"><b>Итого</b></td><td><b>6</b></td></tr>
+    </table>
+    <p style="margin-top:10px; color:#ffcc00;">Дорог = 6 / 2 = <b>3</b></p>
+</div>
+
+<!-- ===== ЗАДАЧА I ===== -->
+<div class="task">
+    <h2>I. Уравнение</h2>
+
+    <div class="condition">
+        <b>Условие:</b> Дано кубическое уравнение A*X³ + B*X² + C*X + D = 0.<br>
+        Все корни — целые числа на отрезке [-100, 100].<br><br>
+        <b>Ввод:</b> 4 числа A, B, C, D (|коэффициенты| < 32768, A ≠ 0)<br>
+        <b>Вывод:</b> все корни через пробел в порядке возрастания (кратные — один раз)
+    </div>
+
+    <div class="explain">
+        <h3>Объяснение:</h3>
+        Кубическое уравнение — это уравнение вида Ax³ + Bx² + Cx + D = 0.<br><br>
+
+        Задача говорит, что <b>все корни — целые числа</b> и лежат в диапазоне от -100 до 100.<br>
+        Это значит, что мы можем просто <b>перебрать</b> все числа от -100 до 100<br>
+        и проверить — является ли данное число корнем уравнения.<br><br>
+
+        <b>Как проверить:</b> подставляем x в формулу A*x³ + B*x² + C*x + D.<br>
+        Если результат = 0, значит x — корень!<br><br>
+
+        <div class="tip">
+            <b>Почему long long?</b> Коэффициенты до 32767, а x³ до 1 000 000. Произведение может быть до 32 767 000 000 — это больше чем влезает в int (2 147 483 647). В Python这种 проблема нет — числа автоматически большие.
+        </div>
+    </div>
+
+    <h3>Код решения:</h3>
+<pre><code><span class="keyword">a</span>, <span class="keyword">b</span>, <span class="keyword">c</span>, <span class="keyword">d</span> = <span class="func">map</span>(<span class="func">int</span>, <span class="func">input</span>().<span class="func">split</span>())  <span class="comment"># Читаем коэффициенты</span>
+<span class="keyword">result</span> = []                             <span class="comment"># Список корней</span>
+
+<span class="keyword">for</span> x <span class="keyword">in</span> <span class="func">range</span>(-<span class="number">100</span>, <span class="number">101</span>):            <span class="comment"># Перебираем от -100 до 100</span>
+    <span class="keyword">if</span> a*x**<span class="number">3</span> + b*x**<span class="number">2</span> + c*x + d == <span class="number">0</span>:  <span class="comment"># Если等于 0 — это корень!</span>
+        <span class="keyword">result</span>.<span class="func">append</span>(x)                <span class="comment"># Добавляем в список</span>
+
+<span class="func">print</span>(*<span class="keyword">result</span>)                         <span class="comment"># Печатаем все корни через пробел</span></code></pre>
+
+    <h3>Как это работает (пример: x³ - 3x² = 0):</h3>
+    <table class="table">
+        <tr><th>x</th><th>x³</th><th>-3x²</th><th>Сумма</th><th>Корень?</th></tr>
+        <tr><td>-1</td><td>-1</td><td>-3</td><td>-4</td><td>нет</td></tr>
+        <tr><td>0</td><td>0</td><td>0</td><td><b>0</b></td><td style="color:#a6e3a1;">да!</td></tr>
+        <tr><td>1</td><td>1</td><td>-3</td><td>-2</td><td>нет</td></tr>
+        <tr><td>2</td><td>8</td><td>-12</td><td>-4</td><td>нет</td></tr>
+        <tr><td>3</td><td>27</td><td>-27</td><td><b>0</b></td><td style="color:#a6e3a1;">да!</td></tr>
+    </table>
+    <p style="margin-top:10px; color:#ffcc00;">Корни: <b>0 3</b></p>
+</div>
+
+<div style="text-align:center; margin-top:40px; color:#666;">
+    Оба решения прошли тесты на acmp.ru — Accepted!
+</div>
+
+</body>
+</html>

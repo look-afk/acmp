@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACMP - Цикл while - Задачи D, E, F</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f23; color: #ccc; padding: 20px; }
+        h1 { text-align: center; color: #ffcc00; margin-bottom: 30px; font-size: 28px; }
+        .task { background: #1a1a2e; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 5px solid #ffcc00; }
+        .task h2 { color: #ffcc00; margin-bottom: 15px; font-size: 22px; }
+        .task h3 { color: #7ec8e3; margin: 15px 0 10px 0; font-size: 17px; }
+        .condition { background: #16213e; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333; }
+        .condition b { color: #aaa; }
+        .explain { background: #0a3d62; padding: 15px; border-radius: 8px; margin-bottom: 15px; line-height: 1.8; }
+        .explain b { color: #ffcc00; }
+        pre { background: #1e1e2e; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 14px; line-height: 1.6; border: 1px solid #444; }
+        code { color: #a6e3a1; }
+        .comment { color: #6c7086; }
+        .keyword { color: #cba6f7; }
+        .string { color: #f9e2af; }
+        .func { color: #89b4fa; }
+        .number { color: #fab387; }
+        .table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .table th { background: #16213e; color: #ffcc00; padding: 8px 12px; text-align: left; }
+        .table td { padding: 8px 12px; border-bottom: 1px solid #333; }
+        .arrow { color: #ffcc00; font-size: 20px; text-align: center; margin: 10px 0; }
+        .emoji { font-size: 20px; }
+        .tip { background: #3d2b00; padding: 12px; border-radius: 8px; border-left: 4px solid #ffcc00; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<h1> задичи D, E, F — Цикл while </h1>
+
+<!-- ===== ЗАДАЧА D ===== -->
+<div class="task">
+    <h2>D. Бинарные числа</h2>
+
+    <div class="condition">
+        <b>Условие:</b> Дано число N. Надо проверить — является ли оно степенью двойки?<br>
+        Степени двойки: 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024...<br><br>
+        <b>Ввод:</b> одно число N (от -10000 до 10000)<br>
+        <b>Вывод:</b> YES если это степень двойки, NO если нет
+    </div>
+
+    <div class="explain">
+        <h3><span class="emoji"> thinking</span> Объяснение как для первоклассника:</h3>
+        Представь, что у тебя есть конфета. И ты хочешь проверить — можно ли разложить её на кучки по 2 штуки, и чтобы в итоге осталась ровно одна кучка из одной конфеты.
+
+        <br><br>
+        <b>Вот что мы делаем:</b><br>
+        1. Берём число, например <b>8</b><br>
+        2. Делим его пополам: <b>8 / 2 = 4</b> — хорошо, без остатка!<br>
+        3. Снова делим пополам: <b>4 / 2 = 2</b> — опять хорошо!<br>
+        4. Снова: <b>2 / 2 = 1</b> — отлично, получили 1!<br>
+        5. Значит 8 — это степень двойки! Выводим YES.
+
+        <br><br>
+        А вот число <b>6</b>:<br>
+        6 / 2 = 3 — хорошо<br>
+        3 / 2 = 1, но <b>остался остаток 1!</b> значит 6 — НЕ степень двойки. Выводим NO.
+
+        <br><br>
+        <div class="tip">
+            <b>А если число 0 или отрицательное?</b> Сразу говорим NO! Степени двойки — это всегда положительные числа: 2, 4, 8, 16...
+        </div>
+    </div>
+
+    <h3>Код решения:</h3>
+<pre><code><span class="keyword">n</span> = <span class="func">int</span>(<span class="func">input</span>())              <span class="comment"># Читаем число</span>
+
+<span class="keyword">if</span> n &lt;= <span class="number">0</span>:                      <span class="comment"># Если 0 или минус — сразу NO</span>
+    <span class="func">print</span>(<span class="string">"NO"</span>)
+<span class="keyword">else</span>:
+    ok = <span class="number">True</span>                   <span class="comment"># Считаем что YES (пока не доказано обратное)</span>
+    <span class="keyword">while</span> n > <span class="number">1</span>:                 <span class="comment"># Делим на 2 пока не станет 1</span>
+        <span class="keyword">if</span> n % <span class="number">2</span> != <span class="number">0</span>:           <span class="comment"># Если есть остаток от деления на 2</span>
+            ok = <span class="number">False</span>            <span class="comment"># Значит это НЕ степень двойки</span>
+            <span class="keyword">break</span>                  <span class="comment"># Выходим из цикла</span>
+        n //= <span class="number">2</span>                  <span class="comment"># Делим число на 2</span>
+    <span class="func">print</span>(<span class="string">"YES"</span> <span class="keyword">if</span> ok <span class="keyword">else</span> <span class="string">"NO"</span>)  <span class="comment"># Печатаем результат</span></code></pre>
+
+    <h3>Как это работает пошагово (пример: n = 16):</h3>
+    <table class="table">
+        <tr><th>Шаг</th><th>n</th><th>n % 2</th><th>Что делаем</th></tr>
+        <tr><td>1</td><td>16</td><td>0</td><td>16 / 2 = 8</td></tr>
+        <tr><td>2</td><td>8</td><td>0</td><td>8 / 2 = 4</td></tr>
+        <tr><td>3</td><td>4</td><td>0</td><td>4 / 2 = 2</td></tr>
+        <tr><td>4</td><td>2</td><td>0</td><td>2 / 2 = 1</td></tr>
+        <tr><td>5</td><td>1</td><td>—</td><td>Цикл закончился, n = 1, значит YES!</td></tr>
+    </table>
+</div>
+
+<!-- ===== ЗАДАЧА E ===== -->
+<div class="task">
+    <h2>E. Числа Фибоначчи</h2>
+
+    <div class="condition">
+        <b>Условие:</b> Последовательность Фибоначчи: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34...<br>
+        Каждое следующее число — это сумма двух предыдущих.<br>
+        Надо найти N-е число (считаем с нуля: 0-е = 0, 1-е = 1, 2-е = 1, 3-е = 2...).<br><br>
+        <b>Ввод:</b> число N (от 0 до 30)<br>
+        <b>Вывод:</b> N-е число Фибоначчи
+    </div>
+
+    <div class="explain">
+        <h3><span class="emoji"> thinking</span> Объяснение как для первоклассника:</h3>
+        Фибоначчи — это такой мудрый математик. Он придумал такую последовательность чисел:
+
+        <br><br>
+        <b>Представь кроликов:</b><br>
+        Месяц 0: у тебя 1 маленький кролик (это 0-е число = <b>0</b>)<br>
+        Месяц 1: появился ещё один кролик (1-е число = <b>1</b>)<br>
+        Месяц 2: старые кролики родили нового (1+1 = <b>2</b>)<br>
+        Месяц 3:Again родили (1+2 = <b>3</b>)<br>
+        Месяц 4: (2+3 = <b>5</b>)<br>
+        Месяц 5: (3+5 = <b>8</b>)<br>
+
+        <br>
+        Видишь? Каждый месяц количество кроликов — это сумма двух предыдущих месяцев!
+
+        <br><br>
+        <b>Наш план:</b><br>
+        1. Если просят 0-е число — даём 0<br>
+        2. Если просят 1-е — даём 1<br>
+        3. Если больше — считаем по порядку: 0, 1, 1, 2, 3, 5, 8... пока не дойдём до нужного номера
+    </div>
+
+    <h3>Код решения:</h3>
+<pre><code><span class="keyword">n</span> = <span class="func">int</span>(<span class="func">input</span>())              <span class="comment"># Читаем номер числа</span>
+
+<span class="keyword">if</span> n == <span class="number">0</span>:                     <span class="comment"># 0-е число = 0</span>
+    <span class="func">print</span>(<span class="number">0</span>)
+<span class="keyword">elif</span> n == <span class="number">1</span>:                   <span class="comment"># 1-е число = 1</span>
+    <span class="func">print</span>(<span class="number">1</span>)
+<span class="keyword">else</span>:
+    a, b = <span class="number">0</span>, <span class="number">1</span>              <span class="comment"># a = предыдущее, b = текущее</span>
+    i = <span class="number">2</span>                    <span class="comment"># Начинаем с 2-го числа</span>
+    <span class="keyword">while</span> i &lt;= n:             <span class="comment"># Пока не дойдём до нужного номера</span>
+        a, b = b, a + b       <span class="comment"># Сдвигаем: a becomes b, b becomes (a+b)</span>
+        i += <span class="number">1</span>                <span class="comment"># Переходим к следующему номеру</span>
+    <span class="func">print</span>(b)                 <span class="comment"># Печатаем результат</span></code></pre>
+
+    <h3>Как это работает (пример: n = 5):</h3>
+    <table class="table">
+        <tr><th>Шаг</th><th>i</th><th>a</th><th>b</th><th>Что происходит</th></tr>
+        <tr><td>Старт</td><td>2</td><td>0</td><td>1</td><td>Готовы считать</td></tr>
+        <tr><td>1</td><td>3</td><td>1</td><td>1</td><td>b = 0 + 1 = 1</td></tr>
+        <tr><td>2</td><td>4</td><td>1</td><td>2</td><td>b = 1 + 1 = 2</td></tr>
+        <tr><td>3</td><td>5</td><td>2</td><td>3</td><td>b = 1 + 2 = 3</td></tr>
+        <tr><td>4</td><td>6</td><td>3</td><td>5</td><td>b = 2 + 3 = 5</td></tr>
+    </table>
+    <p style="margin-top:10px; color:#ffcc00;">5-е число Фибоначчи = <b>5</b></p>
+</div>
+
+<!-- ===== ЗАДАЧА F ===== -->
+<div class="task">
+    <h2>F. Числа Фибоначчи - 2</h2>
+
+    <div class="condition">
+        <b>Условие:</b> Дано число N (от 2 до 1 200 000 000). Надо проверить — является ли оно числом Фибоначчи?<br>
+        Последовательность Фибоначчи: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55...<br><br>
+        <b>Вывод:</b> Если да — вывести 1 и номер числа в последовательности. Если нет — вывести 0.
+    </div>
+
+    <div class="explain">
+        <h3><span class="emoji"> thinking</span> Объяснение как для первоклассника:</h3>
+        Тут надо проверить — есть ли given число в списке Фибоначчи?
+
+        <br><br>
+        <b>Простой план:</b><br>
+        1. Начинаем с первых двух чисел: 1 и 1<br>
+        2. Складываем их: 1+1 = 2 — получилось новое число!<br>
+        3. Теперь складываем следующие: 1+2 = 3<br>
+        4. Потом: 2+3 = 5<br>
+        5. Потом: 3+5 = 8<br>
+        6. Продолжаем пока не дойдём или не превзойдём наше число
+
+        <br><br>
+        Если наше число совпало с каким-то числом в последовательности — значит ОНО ЧИСЛО ФИБОНАЧЧИ! Выводим 1 и его номер.<br>
+        Если мы его перешагнули и не нашли — значит НЕТ. Выводим 0.
+
+        <br><br>
+        <div class="tip">
+            <b>Почему +1 в конце?</b> Потому что мы считаем номер с 1, а переменная pos считает количество шагов. Пример: число 8 — это 6-е число (1, 1, 2, 3, 5, <b>8</b>), а pos после цикла = 5, поэтому выводим pos + 1 = 6.
+        </div>
+    </div>
+
+    <h3>Код решения:</h3>
+<pre><code><span class="keyword">n</span> = <span class="func">int</span>(<span class="func">input</span>())              <span class="comment"># Читаем число</span>
+
+a, b = <span class="number">1</span>, <span class="number">1</span>                  <span class="comment"># Первые два числа Фибоначчи</span>
+pos = <span class="number">1</span>                      <span class="comment"># Счётчик позиции</span>
+
+<span class="keyword">while</span> b &lt; n:                 <span class="comment"># Пока наше число больше текущего</span>
+    c = a + b                <span class="comment"># Считаем следующее число</span>
+    a = b                    <span class="comment"># Сдвигаем a вперёд</span>
+    b = c                    <span class="comment"># b becomes новое число</span>
+    pos += <span class="number">1</span>                <span class="comment"># Увеличиваем позицию</span>
+
+<span class="keyword">if</span> b == n:                   <span class="comment"># Если точно нашли!</span>
+    <span class="func">print</span>(<span class="number">1</span>)                <span class="comment"># Да, это число Фибоначчи</span>
+    <span class="func">print</span>(pos + <span class="number">1</span>)          <span class="comment"># Печатаем его номер</span>
+<span class="keyword">else</span>:
+    <span class="func">print</span>(<span class="number">0</span>)                <span class="comment"># Нет, не нашли</span></code></pre>
+
+    <h3>Как это работает (пример: n = 8):</h3>
+    <table class="table">
+        <tr><th>Шаг</th><th>a</th><th>b</th><th>pos</th><th>b &lt; 8?</th></tr>
+        <tr><td>Старт</td><td>1</td><td>1</td><td>1</td><td>да</td></tr>
+        <tr><td>1</td><td>1</td><td>2</td><td>2</td><td>да</td></tr>
+        <tr><td>2</td><td>2</td><td>3</td><td>3</td><td>да</td></tr>
+        <tr><td>3</td><td>3</td><td>5</td><td>4</td><td>да</td></tr>
+        <tr><td>4</td><td>5</td><td>8</td><td>5</td><td>нет! 8 == 8</td></tr>
+    </table>
+    <p style="margin-top:10px; color:#ffcc00;">Нашли! 8 — это 6-е число Фибоначчи (pos+1 = 5+1 = 6)</p>
+
+    <h3>А если число 10 (не Фибоначчи)?</h3>
+    <table class="table">
+        <tr><th>Шаг</th><th>a</th><th>b</th><th>pos</th><th>b &lt; 10?</th></tr>
+        <tr><td>Старт</td><td>1</td><td>1</td><td>1</td><td>да</td></tr>
+        <tr><td>1</td><td>1</td><td>2</td><td>2</td><td>да</td></tr>
+        <tr><td>2</td><td>2</td><td>3</td><td>3</td><td>да</td></tr>
+        <tr><td>3</td><td>3</td><td>5</td><td>4</td><td>да</td></tr>
+        <tr><td>4</td><td>5</td><td>8</td><td>5</td><td>да</td></tr>
+        <tr><td>5</td><td>8</td><td>13</td><td>6</td><td>нет! 13 > 10</td></tr>
+    </table>
+    <p style="margin-top:10px; color:#ff6b6b;">13 ≠ 10, значит 10 — НЕ число Фибоначчи. Выводим 0.</p>
+</div>
+
+<div style="text-align:center; margin-top:40px; color:#666;">
+    Решения прошли тесты на acmp.ru — все три Accepted!
+</div>
+
+</body>
+</html>

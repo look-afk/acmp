@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Pieces From One Square To Another</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        h1 { color: #333; text-align: center; }
+        h2 { color: #444; border-bottom: 2px solid #666; padding-bottom: 5px; }
+        .board { display: inline-grid; grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); border: 2px solid #333; margin: 20px 0; }
+        .square { display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; }
+        .light { background: #f0d9b5; }
+        .dark { background: #b58863; }
+        .piece { font-size: 28px; }
+        .current { background: #ffeb3b !important; box-shadow: inset 0 0 0 3px #fbc02d; }
+        .valid { background: #4caf50 !important; color: white; }
+        .invalid { background: #f44336 !important; color: white; }
+        .example { background: white; padding: 15px; margin: 15px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .code { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 5px; font-family: 'Consolas', monospace; overflow-x: auto; }
+        .formula { background: #e8f5e9; padding: 10px; border-left: 4px solid #4caf50; margin: 10px 0; font-family: monospace; }
+        .explanation { background: #e3f2fd; padding: 10px; border-left: 4px solid #2196f3; margin: 10px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background: #333; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Логика задачи: какие фигуры могут перейти из одной клетки в другую</h1>
+
+    <div class="example">
+        <h2>📐 Базовая идея: координатная система</h2>
+        <p>Доска 8×8. Клетки нумеруются <strong>x (1..8)</strong> — столбцы (A..H), <strong>y (1..8)</strong> — ряды (1..8).</p>
+        <p>Фигура стоит в <code>(x, y)</code>. Хотим проверить, может ли она пойти в <code>(new_x, new_y)</code>.</p>
+        <div class="formula">
+            dx = |new_x - x|  — расстояние по горизонтали<br>
+            dy = |new_y - y|  — расстояние по вертикали
+        </div>
+        <p>В задаче все фигуры играют за белых, ход выполняется на свободной доске и без взятия фигуры соперника.</p>
+    </div>
+
+    <!-- ROOK -->
+    <div class="example">
+        <h2>🏰 Ладья (Rook)</h2>
+        <div class="code">
+def rook(self, new_x, new_y):
+    return "YES" if self.x == new_x or self.y == new_y else "NO"
+        </div>
+        <div class="explanation">
+            <strong>Правило:</strong> dx == 0 ИЛИ dy == 0<br>
+            Ладья ходит по прямой: либо тот же столбец (x не меняется), либо тот же ряд (y не меняется).
+        </div>
+        <div class="board" id="rook-board"></div>
+        <p>Пример: ладья на <strong>e4 (5,4)</strong>. Ходит на e1, e8, a4, h4 — везде, где x=5 или y=4.</p>
+    </div>
+
+    <!-- BISHOP -->
+    <div class="example">
+        <h2>⛪ Слон (Bishop)</h2>
+        <div class="code">
+def bishop(self, new_x, new_y):
+    return "YES" if abs(self.x - new_x) == abs(self.y - new_y) else "NO"
+        </div>
+        <div class="explanation">
+            <strong>Правило:</strong> dx == dy<br>
+            Слон ходит по диагонали. На диагонали изменение x и y одинаковое по модулю.
+        </div>
+        <div class="board" id="bishop-board"></div>
+        <p>Пример: слон на <strong>c1 (3,1)</strong>. Диагонали: b2, d2, a3, e3... — везде |dx| = |dy|.</p>
+    </div>
+
+    <!-- QUEEN -->
+    <div class="example">
+        <h2>👑 Ферзь (Queen)</h2>
+        <div class="code">
+def queen(self, new_x, new_y):
+    return "YES" if self.rook(new_x, new_y) == "YES" or self.bishop(new_x, new_y) == "YES" else "NO"
+        </div>
+        <div class="explanation">
+            <strong>Правило:</strong> (dx == 0 ИЛИ dy == 0) ИЛИ (dx == dy)<br>
+            Ферзь = ладья + слон. Просто объединяем два правила через OR.
+        </div>
+        <div class="board" id="queen-board"></div>
+    </div>
+
+    <!-- KING -->
+    <div class="example">
+        <h2>🤴 Король (King)</h2>
+        <div class="code">
+def king(self, new_x, new_y):
+    return "YES" if max(abs(self.x - new_x), abs(self.y - new_y)) == 1 else "NO"
+        </div>
+        <div class="explanation">
+            <strong>Правило:</strong> max(dx, dy) == 1<br>
+            Король делает ровно 1 шаг в любую сторону. И dx, и dy ≤ 1, и хотя бы одно = 1.
+            <br><br>
+            <strong>Почему max, а не dx+dy?</strong><br>
+            dx+dy==1 даёт только 4 направления (вверх/вниз/влево/вправо).<br>
+            max(dx,dy)==1 даёт все 8 соседей + диагонали.
+        </div>
+        <div class="board" id="king-board"></div>
+    </div>
+
+    <!-- KNIGHT -->
+    <div class="example">
+        <h2>🐎 Конь (Knight)</h2>
+        <div class="code">
+def knight(self, new_x, new_y):
+    dx, dy = abs(self.x - new_x), abs(self.y - new_y)
+    return "YES" if (dx == 2 and dy == 1) or (dx == 1 and dy == 2) else "NO"
+        </div>
+        <div class="explanation">
+            <strong>Правило:</strong> (dx=2 И dy=1) ИЛИ (dx=1 И dy=2)<br>
+            Конь — единственная фигура, которая «перепрыгивает». Ход буквой «Г»: 2 по одной оси, 1 по другой.
+            <br><br>
+            <strong>Важно:</strong> Порядок не важен, поэтому проверяем оба варианта.
+        </div>
+        <div class="board" id="knight-board"></div>
+    </div>
+
+    <!-- PAWN -->
+    <div class="example">
+        <h2>Пешка (Pawn)</h2>
+        <div class="code">
+def pawn(self, new_x, new_y):
+    dx, dy = new_x - self.x, new_y - self.y
+    if dx == 0 and dy == 1:
+        return "YES"
+    if dx == 0 and dy == 2 and self.y == 2:
+        return "YES"
+    return "NO"
+        </div>
+        <div class="explanation">
+            <strong>В этой задаче пешка белая и ходит без взятия:</strong>
+            <ul>
+                <li>Белая пешка идёт вверх, то есть <code>y</code> увеличивается.</li>
+                <li>Обычный ход: <code>dx = 0</code>, <code>dy = 1</code>.</li>
+                <li>Первый ход на 2 клетки: <code>dx = 0</code>, <code>dy = 2</code>, стартовая линия <code>y = 2</code>.</li>
+                <li>Диагональный ход не подходит, потому что по условию хода с взятием нет.</li>
+            </ul>
+            <strong>Пример:</strong> из E2 в E3 пешка может, из E2 в E4 тоже может, из E2 в F3 не может.
+        </div>
+        <div class="board" id="pawn-white-board"></div>
+    </div>
+
+    <div class="example">
+        <h2>Итоговый метод all</h2>
+        <div class="code">
+def all(self, new_x, new_y=None):
+    if new_y is None:
+        new_x, new_y = self.coord(new_x)
+    else:
+        new_x, new_y = int(new_x), int(new_y)
+
+    pieces = [
+        ("King", self.king(new_x, new_y)),
+        ("Queen", self.queen(new_x, new_y)),
+        ("Rook", self.rook(new_x, new_y)),
+        ("Bishop", self.bishop(new_x, new_y)),
+        ("Knight", self.knight(new_x, new_y)),
+        ("Pawn", self.pawn(new_x, new_y)),
+    ]
+    can_move = [name for name, answer in pieces if answer == "YES"]
+    return "\n".join(can_move) if can_move else "Nobody"
+        </div>
+        <div class="explanation">
+            Метод проверяет все 6 фигур, оставляет только те, для которых ответ <code>YES</code>, и печатает их английские названия. Если список пустой, выводится <code>Nobody</code>.
+        </div>
+    </div>
+
+    <!-- SUMMARY TABLE -->
+    <div class="example">
+        <h2>📋 Сводная таблица условий</h2>
+        <table>
+            <tr><th>Фигура</th><th>Условие (dx=|Δx|, dy=|Δy|)</th><th>Комментарий</th></tr>
+            <tr><td>Ладья</td><td>dx == 0 или dy == 0</td><td>—</td></tr>
+            <tr><td>Слон</td><td>dx == dy</td><td>—</td></tr>
+            <tr><td>Ферзь</td><td>dx == 0 или dy == 0 или dx == dy</td><td>—</td></tr>
+            <tr><td>Король</td><td>max(dx, dy) == 1</td><td>—</td></tr>
+            <tr><td>Конь</td><td>(dx,dy) ∈ {(2,1), (1,2)}</td><td>—</td></tr>
+            <tr><td>Пешка</td><td>dx == 0 и (dy == 1 или dy == 2 при y == 2)</td><td>Только белая пешка, без взятия</td></tr>
+        </table>
+    </div>
+
+    <div class="example">
+        <h2>Примеры</h2>
+        <table>
+            <tr><th>Ввод</th><th>Вывод</th></tr>
+            <tr><td><code>D3 D7</code></td><td><code>Queen<br>Rook</code></td></tr>
+            <tr><td><code>F4 H5</code></td><td><code>Knight</code></td></tr>
+            <tr><td><code>E2 E3</code></td><td><code>King<br>Queen<br>Rook<br>Pawn</code></td></tr>
+            <tr><td><code>A1 H7</code></td><td><code>Nobody</code></td></tr>
+        </table>
+    </div>
+
+    <div class="example">
+        <h2>💡 Почему именно так написано?</h2>
+        <ul>
+            <li><strong>Математика вместо переборов</strong> — формулы O(1), не нужен массив 8×8</li>
+            <li><strong>Чистая геометрия</strong> — шахматы — это геометрия на сетке, dx/dy её идеально описывают</li>
+            <li><strong>Нет магических чисел</strong> — 1, 2, 8 понятны из контекста (шаг, двойной шаг, размер доски)</li>
+            <li><strong>Формат вывода простой</strong> — печатаем названия подходящих фигур, а если таких нет, печатаем Nobody</li>
+            <li><strong>Тестируемость</strong> — каждый метод — чистая функция (x,y)→bool, легко покрыть тестами</li>
+        </ul>
+    </div>
+
+    <script>
+        const PIECES = {
+            '♜': 'rook', '♝': 'bishop', '♛': 'queen', '♚': 'king', '♞': 'knight', '♟': 'pawn'
+        };
+        
+        function createBoard(containerId, piece, x, y, validMoves) {
+            const container = document.getElementById(containerId);
+            const board = document.createElement('div');
+            board.className = 'board';
+            
+            for (let row = 8; row >= 1; row--) {
+                for (let col = 1; col <= 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    
+                    if (col === x && row === y) {
+                        square.classList.add('current');
+                        square.innerHTML = `<span class="piece">${piece}</span>`;
+                    } else if (validMoves.some(m => m[0] === col && m[1] === row)) {
+                        square.classList.add('valid');
+                        square.textContent = '●';
+                    }
+                    
+                    board.appendChild(square);
+                }
+            }
+            container.appendChild(board);
+        }
+        
+        function getValidMoves(piece, x, y) {
+            const moves = [];
+            for (let nx = 1; nx <= 8; nx++) {
+                for (let ny = 1; ny <= 8; ny++) {
+                    if (nx === x && ny === y) continue;
+                    const dx = Math.abs(nx - x), dy = Math.abs(ny - y);
+                    let valid = false;
+                    
+                    switch(piece) {
+                        case 'rook': valid = (x === nx || y === ny); break;
+                        case 'bishop': valid = (dx === dy); break;
+                        case 'queen': valid = (x === nx || y === ny || dx === dy); break;
+                        case 'king': valid = (Math.max(dx, dy) === 1); break;
+                        case 'knight': valid = (dx === 2 && dy === 1) || (dx === 1 && dy === 2); break;
+                        case 'pawn': {
+                            const ddx = nx - x;
+                            const ddy = ny - y;
+                            if (ddx === 0 && ddy === 1) valid = true;
+                            else if (ddx === 0 && ddy === 2 && y === 2) valid = true;
+                            break;
+                        }
+                    }
+                    if (valid) moves.push([nx, ny]);
+                }
+            }
+            return moves;
+        }
+        
+        // Rook on e4 (5,4)
+        createBoard('rook-board', '♜', 5, 4, getValidMoves('rook', 5, 4));
+        // Bishop on c1 (3,1)
+        createBoard('bishop-board', '♝', 3, 1, getValidMoves('bishop', 3, 1));
+        // Queen on d4 (4,4)
+        createBoard('queen-board', '♛', 4, 4, getValidMoves('queen', 4, 4));
+        // King on e4 (5,4)
+        createBoard('king-board', '♚', 5, 4, getValidMoves('king', 5, 4));
+        // Knight on d4 (4,4)
+        createBoard('knight-board', '♞', 4, 4, getValidMoves('knight', 4, 4));
+        // White pawn on e2 (5,2)
+        createBoard('pawn-white-board', '♟', 5, 2, getValidMoves('pawn', 5, 2));
+    </script>
+</body>
+</html>
