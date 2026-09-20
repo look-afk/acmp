@@ -75,13 +75,30 @@ COURSE_STRUCTURE = {
     }
 }
 
+def _normalize_name(s):
+    """Делает сравнение имён папок с курсом нечувствительным к регистру/пробелам."""
+    s = (s or "").strip().lower()
+    s = re.sub(r"\s+", " ", s)
+    s = s.replace("ё", "е")
+    return s
+
+
+# (нормализованное_название_раздела, нормализованное_название_темы) -> точные имена из COURSE_STRUCTURE.
+# Нужно, чтобы папки на диске сопоставлялись с курсом, даже если в их названии
+# лишний пробел, другой регистр или "ё"/"е" вместо друг друга.
+CANONICAL_SEC_TOP = {}
+for _sec_name, _topics in COURSE_STRUCTURE.items():
+    for _top_name in _topics:
+        CANONICAL_SEC_TOP[(_normalize_name(_sec_name), _normalize_name(_top_name))] = (_sec_name, _top_name)
+
+
 IGNORED_NAMES = {
     "manage.py", "tracker.py", "app.py", "Fill.py", "refill.py", "backup.py",
     "test_acmp_sync.py", "test_run.py", "Запустить_Трекер.bat", "main.py", "f1.py"
 }
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-CACHE_TTL_SEC = 180
+CACHE_TTL_SEC = 60
 SYNC_LOG = pathlib.Path(__file__).parent / "sync.log"
 MIN_PARSED_PROBLEMS = 80
 
@@ -385,6 +402,8 @@ def get_stats_data(force=False):
     by_date_accepted = defaultdict(list)
     by_section_topic_accepted = defaultdict(lambda: defaultdict(list))
     local_by_task = {}
+    unmatched_folders = []
+    unmatched_folders_seen = set()
 
     for p in ROOT_DIR.rglob("*"):
         if not p.is_file():
@@ -407,8 +426,16 @@ def get_stats_data(force=False):
             file_date = mtime.date()
             
             parts = rel.parts
-            section = parts[0] if len(parts) > 1 else "Корень"
-            topic = parts[1] if len(parts) > 2 else section
+            section_raw = parts[0] if len(parts) > 1 else "Корень"
+            topic_raw = parts[1] if len(parts) > 2 else section_raw
+            canon = CANONICAL_SEC_TOP.get((_normalize_name(section_raw), _normalize_name(topic_raw)))
+            if canon:
+                section, topic = canon
+            else:
+                section, topic = section_raw, topic_raw
+                if (section_raw, topic_raw) not in unmatched_folders_seen:
+                    unmatched_folders_seen.add((section_raw, topic_raw))
+                    unmatched_folders.append({"section": section_raw, "topic": topic_raw})
             task_letter = p.stem.upper()
             task_key = (section, topic, task_letter)
 
@@ -615,813 +642,447 @@ def get_stats_data(force=False):
             "error": acmp_data.get("sync_error") or "",
             "at": acmp_data.get("synced_at") or "",
         },
+        "unmatched_folders": unmatched_folders,
     }
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACMP Glass Tracker — Статистика курса C++</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-base: #08090c;
-            --glass-bg: rgba(16, 20, 28, 0.65);
-            --glass-card: rgba(22, 28, 38, 0.55);
-            --glass-card-hover: rgba(30, 38, 52, 0.85);
-            --glass-border: rgba(0, 255, 128, 0.16);
-            --glass-border-bright: rgba(0, 255, 128, 0.45);
-            
-            --lime: #00ff7f;
-            --lime-glow: rgba(0, 255, 127, 0.28);
-            --lime-dim: #00b359;
-            --mint: #10b981;
-            --cyan: #06b6d4;
-            --yellow: #facc15;
-            --red: #f87171;
-            --text-main: #f1f5f9;
-            --text-muted: #94a3b8;
-            --text-dark: #64748b;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-base);
-            background-image: 
-                radial-gradient(circle at 10% 15%, rgba(0, 255, 127, 0.09) 0%, transparent 40%),
-                radial-gradient(circle at 90% 30%, rgba(6, 182, 212, 0.07) 0%, transparent 45%),
-                radial-gradient(circle at 50% 85%, rgba(0, 255, 127, 0.06) 0%, transparent 50%);
-            background-attachment: fixed;
-            color: var(--text-main);
-            min-height: 100vh;
-            padding: 24px;
-            overflow-x: hidden;
-        }
-
-        .container {
-            max-width: 1300px;
-            margin: 0 auto;
-        }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-            padding: 20px 28px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-
-        .logo-box {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-
-        .logo-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, var(--lime), #059669);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            box-shadow: 0 0 20px var(--lime-glow);
-        }
-
-        .logo-text h1 {
-            font-size: 22px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            background: linear-gradient(90deg, #ffffff, var(--lime));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .logo-text p {
-            font-size: 13px;
-            color: var(--text-muted);
-            font-weight: 400;
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .live-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(0, 255, 127, 0.1);
-            border: 1px solid rgba(0, 255, 127, 0.3);
-            color: var(--lime);
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 12px;
-            font-weight: 600;
-            font-family: 'JetBrains Mono', monospace;
-            max-width: 420px;
-        }
-
-        .live-badge.error {
-            background: rgba(248, 113, 113, 0.12);
-            border-color: rgba(248, 113, 113, 0.4);
-            color: var(--red);
-        }
-
-        .pulse-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--lime);
-            border-radius: 50%;
-            box-shadow: 0 0 10px var(--lime);
-            animation: pulse 1.8s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(0.95); opacity: 0.6; }
-            50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 14px var(--lime); }
-            100% { transform: scale(0.95); opacity: 0.6; }
-        }
-
-        .btn-refresh {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--glass-border);
-            color: var(--text-main);
-            padding: 8px 16px;
-            border-radius: 12px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 13px;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .btn-refresh:hover {
-            background: var(--lime);
-            color: #000;
-            border-color: var(--lime);
-            box-shadow: 0 0 15px var(--lime-glow);
-        }
-
-        .comparison-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 28px;
-        }
-
-        .day-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(24px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 24px;
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.35);
-        }
-
-        .day-card:hover {
-            border-color: var(--glass-border-bright);
-            transform: translateY(-3px);
-            box-shadow: 0 12px 35px rgba(0, 255, 127, 0.14);
-        }
-
-        .day-card.today {
-            border-color: rgba(0, 255, 127, 0.4);
-            background: linear-gradient(145deg, rgba(16, 28, 22, 0.75), rgba(12, 16, 24, 0.85));
-            box-shadow: 0 10px 30px rgba(0, 255, 127, 0.18);
-        }
-
-        .day-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 16px;
-        }
-
-        .day-tag {
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 4px 10px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-muted);
-        }
-
-        .day-card.today .day-tag {
-            background: rgba(0, 255, 127, 0.15);
-            color: var(--lime);
-            border: 1px solid rgba(0, 255, 127, 0.3);
-        }
-
-        .day-count {
-            font-size: 48px;
-            font-weight: 800;
-            font-family: 'JetBrains Mono', monospace;
-            line-height: 1;
-            margin-bottom: 8px;
-        }
-
-        .day-card.today .day-count {
-            color: var(--lime);
-            text-shadow: 0 0 25px var(--lime-glow);
-        }
-
-        .day-label {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 18px;
-        }
-
-        .day-folders {
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            padding-top: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 240px;
-            overflow-y: auto;
-        }
-
-        .folder-item {
-            background: var(--glass-card);
-            padding: 10px 14px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-        }
-
-        .folder-title {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-main);
-            margin-bottom: 6px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .folder-count {
-            color: var(--lime);
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 700;
-        }
-
-        .folder-tasks {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-
-        .task-chip {
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .task-chip.accepted {
-            background: rgba(0, 255, 127, 0.15);
-            color: var(--lime);
-            border: 1px solid rgba(0, 255, 127, 0.3);
-        }
-
-        .task-chip.draft {
-            background: rgba(250, 204, 21, 0.12);
-            color: var(--yellow);
-            border: 1px solid rgba(250, 204, 21, 0.3);
-        }
-
-        .course-section {
-            background: var(--glass-bg);
-            backdrop-filter: blur(24px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 28px;
-            margin-bottom: 28px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-        }
-
-        .course-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .course-title h2 {
-            font-size: 20px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .course-title p {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-
-        .course-meta {
-            text-align: right;
-        }
-
-        .course-pct {
-            font-size: 32px;
-            font-weight: 800;
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--lime);
-            text-shadow: 0 0 20px var(--lime-glow);
-        }
-
-        .course-ratio {
-            font-size: 13px;
-            color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .progress-bar-wrap {
-            height: 12px;
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 20px;
-            overflow: hidden;
-            margin-bottom: 28px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #059669, var(--lime));
-            border-radius: 20px;
-            box-shadow: 0 0 15px var(--lime-glow);
-            transition: width 0.8s ease;
-        }
-
-        .sections-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
-            gap: 16px;
-        }
-
-        .sec-card {
-            background: var(--glass-card);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 16px 20px;
-            transition: all 0.2s;
-        }
-
-        .sec-card:hover {
-            background: var(--glass-card-hover);
-            border-color: var(--glass-border);
-        }
-
-        .sec-card.active {
-            border-color: rgba(0, 255, 127, 0.35);
-        }
-
-        .sec-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .sec-name {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--text-main);
-        }
-
-        .sec-badge {
-            font-size: 12px;
-            font-weight: 700;
-            font-family: 'JetBrains Mono', monospace;
-            padding: 3px 8px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-muted);
-        }
-
-        .sec-badge.completed {
-            background: rgba(0, 255, 127, 0.15);
-            color: var(--lime);
-            border: 1px solid rgba(0, 255, 127, 0.3);
-        }
-
-        .sec-bar {
-            height: 6px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 12px;
-        }
-
-        .sec-bar-fill {
-            height: 100%;
-            background: var(--lime);
-            border-radius: 10px;
-        }
-
-        .topics-list {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .topic-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 12px;
-            color: var(--text-muted);
-            padding: 4px 6px;
-            border-radius: 6px;
-            background: rgba(0,0,0,0.25);
-        }
-
-        .topic-name {
-            font-weight: 500;
-        }
-
-        .topic-stat {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            color: var(--text-main);
-        }
-
-        .topic-stat.full {
-            color: var(--lime);
-            font-weight: 700;
-        }
-
-        .live-table-sec {
-            background: var(--glass-bg);
-            backdrop-filter: blur(24px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 24px;
-            margin-bottom: 28px;
-        }
-
-        .table-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .table-wrap {
-            overflow-x: auto;
-        }
-
-        table.glass-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        table.glass-table th {
-            text-align: left;
-            padding: 12px 16px;
-            color: var(--text-muted);
-            font-weight: 600;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        table.glass-table td {
-            padding: 12px 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-        }
-
-        table.glass-table tr:hover td {
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .feed-section {
-            background: var(--glass-bg);
-            backdrop-filter: blur(24px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 24px;
-        }
-
-        .feed-header {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .history-timeline {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .history-row {
-            display: grid;
-            grid-template-columns: 140px 100px 1fr;
-            align-items: center;
-            background: var(--glass-card);
-            padding: 12px 18px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            font-size: 13px;
-        }
-
-        .hist-date {
-            font-weight: 600;
-            color: var(--text-main);
-        }
-
-        .hist-count {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 700;
-            color: var(--lime);
-        }
-
-        .hist-desc {
-            color: var(--text-muted);
-            font-size: 12px;
-        }
-
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
-        ::-webkit-scrollbar-thumb { background: rgba(0, 255, 127, 0.2); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--lime); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACMP Tracker — C++</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0b0c10;
+  --panel:#131419;
+  --panel-2:#181a21;
+  --border:#23252e;
+  --border-soft:#1b1d25;
+  --text:#eceef2;
+  --text-muted:#8a8d98;
+  --text-dim:#5c5f6b;
+  --accent:#6d7bff;
+  --accent-soft:rgba(109,123,255,0.14);
+  --good:#2ecc8f;
+  --good-soft:rgba(46,204,143,0.14);
+  --warn:#f2b84b;
+  --bad:#f2555a;
+  --radius:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  padding:28px 32px 60px;
+}
+.mono{font-family:'JetBrains Mono',monospace;}
+.wrap{max-width:1180px;margin:0 auto;}
+
+/* header */
+header{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:22px;flex-wrap:wrap;gap:14px;
+}
+.title-block{display:flex;align-items:center;gap:12px;}
+.title-icon{
+  width:38px;height:38px;border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),#4a56d6);
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+}
+.title-block h1{font-size:19px;font-weight:700;letter-spacing:-0.2px;}
+.title-block p{font-size:12.5px;color:var(--text-muted);margin-top:1px;}
+
+.status-row{display:flex;align-items:center;gap:10px;}
+.sync-pill{
+  display:flex;align-items:center;gap:7px;
+  background:var(--panel);border:1px solid var(--border);
+  padding:7px 13px;border-radius:30px;font-size:12px;color:var(--text-muted);
+  max-width:360px;
+}
+.sync-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none;}
+.sync-pill.bad .dot{background:var(--bad);}
+.sync-pill span.msg{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.btn{
+  background:var(--panel);border:1px solid var(--border);color:var(--text);
+  padding:8px 15px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:7px;transition:.15s;
+}
+.btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.spinning svg{animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* KPI row */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+.kpi{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 20px;
+}
+.kpi .label{font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
+.kpi .value{font-size:30px;font-weight:800;margin-top:6px;font-family:'JetBrains Mono',monospace;}
+.kpi .sub{font-size:12px;color:var(--text-dim);margin-top:3px;}
+.kpi.accent .value{color:var(--good);}
+.kpi.streak .value{color:var(--warn);}
+
+/* tabs */
+.tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);}
+.tab{
+  padding:10px 16px;font-size:13.5px;font-weight:600;color:var(--text-muted);
+  cursor:pointer;border-bottom:2px solid transparent;transition:.15s;
+}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--text);border-bottom-color:var(--accent);}
+.panel{display:none;}
+.panel.active{display:block;}
+
+.card{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:22px;margin-bottom:16px;
+}
+.card h3{font-size:14.5px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.card h3 .hint{font-size:11.5px;color:var(--text-dim);font-weight:500;}
+
+/* overview grid */
+.overview-grid{display:grid;grid-template-columns:260px 1fr;gap:16px;}
+@media(max-width:820px){.overview-grid{grid-template-columns:1fr;}}
+.ring-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+.ring-pct{font-size:34px;font-weight:800;font-family:'JetBrains Mono',monospace;}
+.ring-sub{font-size:12.5px;color:var(--text-muted);text-align:center;}
+
+.day-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px;}
+.day-box{
+  background:var(--panel-2);border:1px solid var(--border-soft);border-radius:10px;padding:12px 14px;
+}
+.day-box .n{font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;}
+.day-box .l{font-size:11.5px;color:var(--text-muted);margin-bottom:2px;}
+.day-box.today{border-color:rgba(109,123,255,0.4);background:var(--accent-soft);}
+
+/* sections */
+.sec-card{
+  background:var(--panel-2);border:1px solid var(--border-soft);border-radius:12px;
+  padding:16px 18px;margin-bottom:10px;
+}
+.sec-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.sec-head .name{font-weight:700;font-size:14px;}
+.sec-head .stat{font-size:12.5px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;}
+.bar-track{height:6px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:12px;}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--good));border-radius:4px;}
+.topics{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 16px;}
+.topic-row{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;color:var(--text-muted);border-bottom:1px dashed var(--border-soft);}
+.topic-row .t{color:var(--text);}
+.topic-row .v.full{color:var(--good);font-weight:700;}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;font-size:11.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--border);}
+td{padding:9px 10px;border-bottom:1px solid var(--border-soft);color:var(--text-muted);}
+td.name{color:var(--text);font-weight:600;font-family:'JetBrains Mono',monospace;}
+.chip{padding:3px 9px;border-radius:6px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+.chip.accepted{background:var(--good-soft);color:var(--good);}
+.chip.draft{background:rgba(242,184,75,0.12);color:var(--warn);}
+.table-scroll{max-height:520px;overflow-y:auto;}
+
+/* history */
+.hist-row{
+  display:grid;grid-template-columns:140px 70px 1fr;gap:14px;align-items:start;
+  padding:10px 0;border-bottom:1px solid var(--border-soft);font-size:13px;
+}
+.hist-row .d{color:var(--text);font-weight:600;}
+.hist-row .n{font-family:'JetBrains Mono',monospace;color:var(--good);font-weight:700;}
+.hist-row .desc{color:var(--text-muted);font-size:12.5px;line-height:1.5;}
+
+.empty{color:var(--text-dim);font-size:13px;padding:14px 0;text-align:center;}
+canvas{max-height:260px;}
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="logo-box">
-                <div class="logo-icon">⚡</div>
-                <div class="logo-text">
-                    <h1>ACMP GLASS TRACKER</h1>
-                    <p>Курс: Язык программирования C++ • Синхронизация с ACMP (Только Accepted)</p>
-                </div>
-            </div>
-            <div class="header-actions">
-                <div class="live-badge">
-                    <span class="pulse-dot"></span>
-                    <span id="liveTime">ACMP VERIFIED SYNC</span>
-                </div>
-                <button class="btn-refresh" onclick="fetchData(true)">🔄 Обновить с ACMP</button>
-            </div>
-        </header>
+<div class="wrap">
 
-        <div class="comparison-grid">
-            <div class="day-card today">
-                <div class="day-card-header">
-                    <span class="day-tag">СЕГОДНЯ</span>
-                    <span class="day-label" id="todayDateStr">18.09.2026</span>
-                </div>
-                <div class="day-count" id="todayCount">0</div>
-                <div class="day-label">задач курса C++ сдано сегодня (Accepted на ACMP)</div>
-                <div class="day-folders" id="todayFolders"></div>
-            </div>
-
-            <div class="day-card">
-                <div class="day-card-header">
-                    <span class="day-tag">ВЧЕРА</span>
-                    <span class="day-label" id="yesterdayDateStr">17.09.2026</span>
-                </div>
-                <div class="day-count" id="yesterdayCount">0</div>
-                <div class="day-label">задач курса C++ сдано вчера</div>
-                <div class="day-folders" id="yesterdayFolders"></div>
-            </div>
-
-            <div class="day-card">
-                <div class="day-card-header">
-                    <span class="day-tag">ПОЗАВЧЕРА</span>
-                    <span class="day-label" id="dayBeforeDateStr">16.09.2026</span>
-                </div>
-                <div class="day-count" id="dayBeforeCount">0</div>
-                <div class="day-label">задач курса C++ сдано позавчера</div>
-                <div class="day-folders" id="dayBeforeFolders"></div>
-            </div>
-        </div>
-
-        <div class="course-section">
-            <div class="course-header">
-                <div class="course-title">
-                    <h2>🏆 Прогресс курса: Язык программирования C++</h2>
-                    <p>Проценты считаются по жирным (Accepted) задачам на страницах тем acmp.ru</p>
-                </div>
-                <div class="course-meta">
-                    <div class="course-pct" id="coursePct">0%</div>
-                    <div class="course-ratio" id="courseRatio">0 / 239 задач</div>
-                </div>
-            </div>
-            
-            <div class="progress-bar-wrap">
-                <div class="progress-bar-fill" id="courseBarFill" style="width: 0%"></div>
-            </div>
-
-            <div class="sections-grid" id="sectionsGrid"></div>
-        </div>
-
-        <div class="live-table-sec">
-            <div class="table-title">
-                <span>📁 Локальные файлы и статус проверки на ACMP</span>
-                <span style="font-size: 12px; color: var(--text-muted); font-weight: 400;">Зелёный = Accepted на ACMP. Текст в файле сам по себе задачу не сдаёт.</span>
-            </div>
-            <div class="table-wrap">
-                <table class="glass-table">
-                    <thead>
-                        <tr>
-                            <th>Файл</th>
-                            <th>Раздел и Тема</th>
-                            <th>Время изменения</th>
-                            <th>Строк</th>
-                            <th>Размер</th>
-                            <th>Статус на ACMP</th>
-                        </tr>
-                    </thead>
-                    <tbody id="filesTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="feed-section">
-            <div class="feed-header">
-                <span>📊 Динамика по дням (История Accepted)</span>
-            </div>
-            <div class="history-timeline" id="historyTimeline"></div>
-        </div>
+  <header>
+    <div class="title-block">
+      <div class="title-icon">▲</div>
+      <div>
+        <h1>ACMP Tracker</h1>
+        <p>Курс C++ · прогресс и статистика</p>
+      </div>
     </div>
+    <div class="status-row">
+      <div class="sync-pill" id="syncPill">
+        <div class="dot"></div>
+        <span class="msg" id="syncMsg">Синхронизация…</span>
+      </div>
+      <button class="btn" id="refreshBtn" onclick="fetchData(true)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+        Обновить
+      </button>
+    </div>
+  </header>
 
-    <script>
-        async function fetchData(force) {
-            try {
-                const res = await fetch('/api/stats' + (force ? '?force=1' : ''));
-                const data = await res.json();
-                renderData(data);
-            } catch (e) {
-                console.error("Ошибка загрузки данных:", e);
-            }
+  <div class="card" id="mismatchWarning" style="display:none;border-color:rgba(242,184,75,0.4);background:rgba(242,184,75,0.08);">
+    <h3 style="color:var(--warn);">⚠ Папки не совпадают с темами курса</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);line-height:1.6;">
+      Файлы в этих папках не привязываются к прогрессу курса, даже если задача Accepted на ACMP —
+      название папки должно точь-в-точь совпадать с разделом/темой курса. Переименуй папку или перенеси файл.
+    </p>
+    <div id="mismatchList" style="margin-top:10px;font-size:12.5px;font-family:'JetBrains Mono',monospace;color:var(--warn);"></div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi accent">
+      <div class="label" id="todayDateStr">Сегодня</div>
+      <div class="value" id="todayCount">0</div>
+      <div class="sub">задач Accepted</div>
+    </div>
+    <div class="kpi">
+      <div class="label" id="yesterdayDateStr">Вчера</div>
+      <div class="value" id="yesterdayCount">0</div>
+      <div class="sub">задач Accepted</div>
+    </div>
+    <div class="kpi streak">
+      <div class="label">Стрик</div>
+      <div class="value" id="streakVal">0 дн.</div>
+      <div class="sub">подряд с решениями</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Всего решено</div>
+      <div class="value" id="totalSolved">0</div>
+      <div class="sub" id="courseRatio">— / — задач курса</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="overview">Обзор</div>
+    <div class="tab" data-tab="sections">Разделы курса</div>
+    <div class="tab" data-tab="history">История</div>
+    <div class="tab" data-tab="files">Файлы</div>
+  </div>
+
+  <div class="panel active" id="panel-overview">
+    <div class="overview-grid">
+      <div class="card ring-wrap">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <circle cx="80" cy="80" r="68" fill="none" stroke="var(--border)" stroke-width="14"/>
+          <circle id="ringFill" cx="80" cy="80" r="68" fill="none" stroke="url(#ringGrad)" stroke-width="14"
+            stroke-linecap="round" stroke-dasharray="427" stroke-dashoffset="427" transform="rotate(-90 80 80)"/>
+          <defs>
+            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#6d7bff"/>
+              <stop offset="100%" stop-color="#2ecc8f"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="ring-pct" id="coursePct">0%</div>
+        <div class="ring-sub">пройдено курса</div>
+      </div>
+      <div class="card">
+        <h3>Последние 3 дня <span class="hint">по дате Accepted на ACMP</span></h3>
+        <div class="day-strip">
+          <div class="day-box today">
+            <div class="l">Сегодня</div>
+            <div class="n" id="dToday">0</div>
+          </div>
+          <div class="day-box">
+            <div class="l">Вчера</div>
+            <div class="n" id="dYesterday">0</div>
+          </div>
+          <div class="day-box">
+            <div class="l">Позавчера</div>
+            <div class="n" id="dBefore">0</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <canvas id="historyChart" height="90"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-sections">
+    <div class="card" id="sectionsCard">
+      <h3>Прогресс по разделам</h3>
+      <div id="sectionsList"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-history">
+    <div class="card">
+      <h3>Динамика по дням</h3>
+      <div id="historyTimeline"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-files">
+    <div class="card">
+      <h3>Локальные файлы решений <span class="hint">зелёный = подтверждено Accepted на ACMP</span></h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Файл</th><th>Раздел / Тема</th><th>Изменён</th><th>Строк</th><th>Статус</th></tr>
+          </thead>
+          <tbody id="filesTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let historyChart = null;
+
+function setActiveTab(name){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setActiveTab(t.dataset.tab)));
+
+async function fetchData(force){
+  const btn = document.getElementById('refreshBtn');
+  if (force) btn.classList.add('spinning');
+  try {
+    const res = await fetch('/api/stats' + (force ? '?force=1' : ''));
+    const data = await res.json();
+    renderData(data);
+  } catch (e) {
+    console.error('Ошибка загрузки данных:', e);
+  } finally {
+    if (force) setTimeout(() => btn.classList.remove('spinning'), 400);
+  }
+}
+
+function renderData(data){
+  document.getElementById('todayDateStr').innerText = 'Сегодня, ' + data.today_str;
+  document.getElementById('todayCount').innerText = data.today_count;
+  document.getElementById('yesterdayDateStr').innerText = 'Вчера, ' + (data.yesterday_str || '');
+  document.getElementById('yesterdayCount').innerText = data.yesterday_count;
+  document.getElementById('streakVal').innerText = data.streak + ' дн.';
+  document.getElementById('totalSolved').innerText = data.total_solved;
+  document.getElementById('courseRatio').innerText = `${data.course.solved_tasks} / ${data.course.total_tasks} задач курса`;
+  document.getElementById('dToday').innerText = data.today_count;
+  document.getElementById('dYesterday').innerText = data.yesterday_count;
+  document.getElementById('dBefore').innerText = data.day_before_count;
+
+  const pill = document.getElementById('syncPill');
+  const msg = document.getElementById('syncMsg');
+  const sync = data.sync || {};
+  if (sync.ok) {
+    pill.classList.remove('bad');
+    msg.innerText = 'Синк ACMP OK · ' + (sync.at || '');
+  } else {
+    pill.classList.add('bad');
+    msg.innerText = sync.error ? ('Ошибка синка: ' + sync.error) : 'Нет синка с ACMP';
+  }
+
+  const pct = data.course.percent || 0;
+  document.getElementById('coursePct').innerText = pct + '%';
+  const circumference = 427;
+  document.getElementById('ringFill').style.strokeDashoffset = circumference - (circumference * pct / 100);
+
+  // mismatch warning
+  const mw = document.getElementById('mismatchWarning');
+  const ml = document.getElementById('mismatchList');
+  if (data.unmatched_folders && data.unmatched_folders.length > 0) {
+    mw.style.display = 'block';
+    ml.innerHTML = data.unmatched_folders.map(f => `• ${f.section} / ${f.topic}`).join('<br>');
+  } else {
+    mw.style.display = 'none';
+  }
+
+  // sections
+  const secList = document.getElementById('sectionsList');
+  secList.innerHTML = '';
+  data.course.sections.forEach(sec => {
+    const div = document.createElement('div');
+    div.className = 'sec-card';
+    let topicsHtml = '';
+    sec.topics.forEach(t => {
+      const full = t.solved_count >= t.total;
+      topicsHtml += `<div class="topic-row"><span class="t">${t.name}</span><span class="v ${full ? 'full' : ''}">${t.solved_count}/${t.total}</span></div>`;
+    });
+    div.innerHTML = `
+      <div class="sec-head">
+        <span class="name">${sec.section}</span>
+        <span class="stat">${sec.solved}/${sec.total} · ${sec.percent}%</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${sec.percent}%"></div></div>
+      <div class="topics">${topicsHtml}</div>
+    `;
+    secList.appendChild(div);
+  });
+
+  // files
+  const tbody = document.getElementById('filesTableBody');
+  tbody.innerHTML = '';
+  if (!data.all_recent || data.all_recent.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Файлы решений не найдены</td></tr>';
+  }
+  (data.all_recent || []).forEach(f => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="name">${f.name}</td>
+      <td>${f.section} → ${f.topic}</td>
+      <td class="mono">${f.mtime} (${f.date_str})</td>
+      <td class="mono">${f.lines}</td>
+      <td><span class="chip ${f.is_accepted ? 'accepted' : 'draft'}">${f.is_accepted ? 'Accepted' : 'Черновик'}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // history timeline
+  const hist = document.getElementById('historyTimeline');
+  hist.innerHTML = '';
+  (data.history || []).forEach(h => {
+    const desc = h.summary.map(s => `${s.category} (${s.tasks.join(', ')})`).join(' · ') || 'Нет сданных задач';
+    const row = document.createElement('div');
+    row.className = 'hist-row';
+    row.innerHTML = `
+      <div class="d">${h.date_str}<br><span style="color:var(--text-dim);font-weight:400;">${h.day_name}</span></div>
+      <div class="n">${h.count}</div>
+      <div class="desc">${desc}</div>
+    `;
+    hist.appendChild(row);
+  });
+
+  // chart
+  const labels = (data.history || []).slice().reverse().map(h => h.date_str.slice(0,5));
+  const counts = (data.history || []).slice().reverse().map(h => h.count);
+  const ctx = document.getElementById('historyChart').getContext('2d');
+  if (historyChart) {
+    historyChart.data.labels = labels;
+    historyChart.data.datasets[0].data = counts;
+    historyChart.update();
+  } else {
+    historyChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: counts,
+          backgroundColor: 'rgba(109,123,255,0.55)',
+          borderRadius: 5,
+          maxBarThickness: 26
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#8a8d98', font: { size: 11 } } },
+          y: { beginAtZero: true, grid: { color: '#1b1d25' }, ticks: { color: '#8a8d98', font: { size: 11 }, precision: 0 } }
         }
+      }
+    });
+  }
+}
 
-        function renderData(data) {
-            document.getElementById('todayCount').innerText = data.today_count;
-            document.getElementById('todayDateStr').innerText = data.today_str;
-            document.getElementById('yesterdayCount').innerText = data.yesterday_count;
-            document.getElementById('yesterdayDateStr').innerText = data.yesterday_str || '';
-            document.getElementById('dayBeforeCount').innerText = data.day_before_count;
-            document.getElementById('dayBeforeDateStr').innerText = data.day_before_str || '';
-
-            const badge = document.querySelector('.live-badge');
-            const liveTime = document.getElementById('liveTime');
-            const sync = data.sync || {};
-            if (sync.ok) {
-                badge.classList.remove('error');
-                liveTime.innerText = 'ACMP ' + (sync.at ? sync.at : 'OK');
-            } else {
-                badge.classList.add('error');
-                liveTime.innerText = sync.error ? ('Ошибка: ' + sync.error) : 'Нет синка с ACMP';
-            }
-
-            renderFolders('todayFolders', data.today_breakdown);
-            renderFolders('yesterdayFolders', data.yesterday_breakdown);
-            renderFolders('dayBeforeFolders', data.day_before_breakdown);
-
-            document.getElementById('coursePct').innerText = data.course.percent + '%';
-            document.getElementById('courseRatio').innerText = `${data.course.solved_tasks} / ${data.course.total_tasks} задач`;
-            document.getElementById('courseBarFill').style.width = data.course.percent + '%';
-
-            const secGrid = document.getElementById('sectionsGrid');
-            secGrid.innerHTML = '';
-            data.course.sections.forEach(sec => {
-                const isCompleted = sec.percent >= 100;
-                const secCard = document.createElement('div');
-                secCard.className = `sec-card ${sec.solved > 0 ? 'active' : ''}`;
-                
-                let topicsHtml = '';
-                sec.topics.forEach(t => {
-                    const isFull = t.solved_count >= t.total;
-                    topicsHtml += `
-                        <div class="topic-row">
-                            <span class="topic-name">${t.name}</span>
-                            <span class="topic-stat ${isFull ? 'full' : ''}">${t.solved_count}/${t.total} (${t.percent}%)</span>
-                        </div>
-                    `;
-                });
-
-                secCard.innerHTML = `
-                    <div class="sec-head">
-                        <span class="sec-name">${sec.section}</span>
-                        <span class="sec-badge ${isCompleted ? 'completed' : ''}">${sec.solved}/${sec.total} (${sec.percent}%)</span>
-                    </div>
-                    <div class="sec-bar">
-                        <div class="sec-bar-fill" style="width: ${sec.percent}%"></div>
-                    </div>
-                    <div class="topics-list">
-                        ${topicsHtml}
-                    </div>
-                `;
-                secGrid.appendChild(secCard);
-            });
-
-            const tbody = document.getElementById('filesTableBody');
-            tbody.innerHTML = '';
-            data.all_recent.forEach(f => {
-                const tr = document.createElement('tr');
-                const isAcc = f.is_accepted;
-                tr.innerHTML = `
-                    <td style="font-weight: 600; color: var(--text-main); font-family: 'JetBrains Mono', monospace;">${f.name}</td>
-                    <td style="color: var(--text-muted);">${f.section} → ${f.topic}</td>
-                    <td style="color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">${f.mtime} (${f.date_str})</td>
-                    <td style="font-family: 'JetBrains Mono', monospace;">${f.lines}</td>
-                    <td style="font-family: 'JetBrains Mono', monospace;">${f.size} B</td>
-                    <td>
-                        <span class="task-chip ${isAcc ? 'accepted' : 'draft'}">
-                            ${isAcc ? '✅ ACCEPTED' : '📝 ЧЕРНОВИК (НЕ СДАНО)'}
-                        </span>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            const histTimeline = document.getElementById('historyTimeline');
-            histTimeline.innerHTML = '';
-            data.history.forEach(h => {
-                if (h.count === 0 && h.day_name !== 'Сегодня' && h.day_name !== 'Вчера') return;
-                
-                const summaryText = h.summary.map(s => `${s.category} (${s.tasks.join(', ')})`).join(' • ') || 'Нет сданных задач';
-                
-                const row = document.createElement('div');
-                row.className = 'history-row';
-                row.innerHTML = `
-                    <div class="hist-date">${h.date_str} (${h.day_name})</div>
-                    <div class="hist-count">${h.count} задач</div>
-                    <div class="hist-desc">${summaryText}</div>
-                `;
-                histTimeline.appendChild(row);
-            });
-        }
-
-        function renderFolders(containerId, breakdown) {
-            const cont = document.getElementById(containerId);
-            cont.innerHTML = '';
-            if (!breakdown || breakdown.length === 0) {
-                cont.innerHTML = '<div style="color: var(--text-dark); font-size: 12px; padding: 8px;">Нет сданных задач за этот день</div>';
-                return;
-            }
-
-            breakdown.forEach(item => {
-                const chips = item.items.map(t => `<span class="task-chip accepted">${t.name}</span>`).join('');
-                const div = document.createElement('div');
-                div.className = 'folder-item';
-                div.innerHTML = `
-                    <div class="folder-title">
-                        <span>📁 ${item.category}</span>
-                        <span class="folder-count">+${item.count}</span>
-                    </div>
-                    <div class="folder-tasks">${chips}</div>
-                `;
-                cont.appendChild(div);
-            });
-        }
-
-        fetchData(true);
-        setInterval(() => fetchData(false), 30000);
-    </script>
+fetchData(true);
+setInterval(() => fetchData(false), 30000);
+</script>
 </body>
 </html>
 """
-
 class TrackerHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
