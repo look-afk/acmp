@@ -215,7 +215,11 @@ PROBLEM_LINK_RE = re.compile(
 
 
 def fetch_topic(opener, sec_name, top_name, top_info):
-    """Fetch a topic page; Accepted = problem letter wrapped in <b> on ACMP."""
+    """Fetch a topic page just to enumerate task letters and problem IDs.
+    ВАЖНО: жирный шрифт на этой странице означает "текущая просматриваемая задача",
+    а НЕ "задача решена (Accepted)" — поэтому статус решения сюда не смотрим,
+    он берётся отдельно со страницы посылок (main=status), где ACMP явно пишет
+    <span class="green">Accepted</span>."""
     top_id = top_info["topic_id"]
     sec_id = top_info["sec_id"]
     url = (
@@ -223,27 +227,20 @@ def fetch_topic(opener, sec_name, top_name, top_info):
         f"&id_course=1&id_section={sec_id}&id_topic={top_id}"
     )
     html = http_get(opener, url, timeout=12)
-    local_acc = set()
     local_p2t = {}
     letters = []
-    # Буква может встретиться в тексте урока и в списке задач.
-    # Accepted — если хотя бы одна ссылка этой буквы обёрнута в <b>.
     found = {}
     for match in PROBLEM_LINK_RE.finditer(html):
         problem_id = int(match.group(2))
         let = match.group(3).upper()
-        is_accepted = bool(match.group(1))
-        prev = found.get(let)
-        found[let] = (problem_id, (prev[1] if prev else False) or is_accepted)
-    for let, (problem_id, is_accepted) in found.items():
+        found[let] = problem_id
+    for let, problem_id in found.items():
         letters.append(let)
         task_key = (sec_name, top_name, let)
         local_p2t[problem_id] = task_key
-        if is_accepted:
-            local_acc.add(task_key)
     if not local_p2t:
         raise RuntimeError(f"На странице темы нет задач: {sec_name} / {top_name}")
-    return local_acc, local_p2t, letters
+    return local_p2t, letters
 
 
 def fetch_accepted_submission_dates(cookiejar, problem_to_task):
@@ -332,8 +329,7 @@ def sync_acmp_status(force=False):
                 for fut in _cf.as_completed(futures):
                     sec_name, top_name = futures[fut]
                     try:
-                        local_acc, local_p2t, letters = fut.result()
-                        acc_set.update(local_acc)
+                        local_p2t, letters = fut.result()
                         problem_to_task.update(local_p2t)
                         topic_totals[(sec_name, top_name)] = len(letters)
                     except Exception as exc:
@@ -349,6 +345,10 @@ def sync_acmp_status(force=False):
             dates_error = ""
             try:
                 accepted_dates = fetch_accepted_submission_dates(cookiejar, problem_to_task)
+                # Источник истины по "решено/не решено" — страница посылок (main=status),
+                # где ACMP явно пишет <span class="green">Accepted</span>. Не жирный шрифт
+                # на странице темы (тот означает лишь "текущая просматриваемая задача").
+                acc_set = set(accepted_dates.keys())
             except Exception as exc:
                 dates_error = f"Даты сдач не загружены: {exc}"
 
@@ -426,8 +426,12 @@ def get_stats_data(force=False):
             file_date = mtime.date()
             
             parts = rel.parts
-            section_raw = parts[0] if len(parts) > 1 else "Корень"
-            topic_raw = parts[1] if len(parts) > 2 else section_raw
+            if len(parts) < 3:
+                # Файл не лежит в структуре Раздел/Тема/Буква.py — это не решение
+                # задачи курса (например, скрипт-утилита или файл не на своём месте).
+                # Пропускаем молча, без предупреждения.
+                continue
+            section_raw, topic_raw = parts[0], parts[1]
             canon = CANONICAL_SEC_TOP.get((_normalize_name(section_raw), _normalize_name(topic_raw)))
             if canon:
                 section, topic = canon
