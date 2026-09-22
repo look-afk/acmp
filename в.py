@@ -1,5 +1,5 @@
-n = input()
-if n == n[::-1]:
-    print("YES")
+a = input()
+if a == a.capitalize():
+    print(a.lower())
 else:
-    print("NO")
+    print(a.upper())
